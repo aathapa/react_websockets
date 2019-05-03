@@ -1,78 +1,88 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect } from 'react';
 import socketIO from 'socket.io-client';
 import './App.css'
 
-const socket = socketIO('http://localhost:3000');
+const socket = socketIO('http://localhost:4000');
 
-class App extends Component {
+function App() {
+  let textInputRef = React.createRef();
+  const [messages, setMessages] = useState([]);
+  const [Id, setId] = useState('');
+  const [messageText, setMessageText] = useState('');
+  const [location, setLocation] = useState('');
 
-  state = {
-    messages: [],
-    messageText: '',
-    Id: ''
-  }
-
-  componentDidMount() {
-    socket.on('socketId', Id => this.setState({ Id }));
+  useEffect(() => {
+    socket.on('socketId', Id => setId(Id));
     socket.on('newUser', newUserMessage => console.log(newUserMessage));
-    socket.on('message', (newMessage) => {
-      this.setState(({ messages }) => ({
-        messages: [...messages, newMessage],
-        id: newMessage.socketId
-      }))
-    })
+    socket.on('message', (newMessage) => setMessages(prevMessage => [...prevMessage, newMessage]));
+    socket.on('location', location => setLocation(location));
+  }, []);
+
+  const onTextChange = e => {
+    setMessageText(e.target.value);
   }
 
-  onTextChange = e => {
-    this.setState({ messageText: e.target.value })
+  const onSendClick = e => {
+    socket.emit('sendMessage', messageText);
+    setMessageText('');
+    textInputRef.current.focus();
   }
 
-  onSendClick = e => {
-    socket.emit('sendMessage', this.state.messageText);
-    this.setState({ messageText: '' }, () => this._input.focus());
-  }
-
-  render() {
-    const { messages, Id, messageText } = this.state;
-    return (
-      <div className="App-Container">
-        <div className="App-Main-Section">
-          <div className="App-Chat-Section">
-            {messages.map(({ timestamp, data, socketId }) => {
-              return (
-                <div key={timestamp} style={{ margin: '15px' }}>
-                  <span
-                    className="App-Chat-Section-Item"
-                    style={{ backgroundColor: socketId === Id ? '#0984e3' : '#d63031' }}
-                  >
-                    {data}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-          <div className="App-Input-Section">
-            <input
-              ref={e => this._input = e}
-              className="App-Input-Style"
-              placeholder="Type your message"
-              onChange={this.onTextChange}
-              value={messageText}
-              style={{ padding: 10 }}
-            />
-            <button
-              className="App-Button-Style"
-              disabled={messageText ? false : true}
-              type="submit"
-              onClick={this.onSendClick}
-            >
-              Send
-            </button>
-          </div>
-        </div>
-      </div>
+  const onSendLocationClick = () => {
+    navigator.geolocation
+      .getCurrentPosition(({ coords: { latitude, longitude } }) =>
+        socket.emit('sendLocation', { latitude, longitude })
     );
   }
+
+  console.log(messages);
+  return (
+    <div className="App-Container">
+      <div className="App-Main-Section">
+        <div className="App-Chat-Section">
+          {messages.map(({ createdAt, messageText, socketId }) => {
+            return (
+              <div key={createdAt} style={{ margin: '15px' }}>
+                <span
+                  className="App-Chat-Section-Item"
+                  style={{ backgroundColor: socketId === Id ? '#0984e3' : '#d63031' }}
+                >
+                  {messageText}
+                </span>
+              </div>
+            )
+          })}
+          <span>
+            {location && <a href={location} rel="noopener noreferrer" target="_blank">My Location</a>}
+          </span>
+        </div>
+        <div className="App-Input-Section">
+          <input
+            ref={textInputRef}
+            className="App-Input-Style"
+            placeholder="Type your message"
+            onChange={onTextChange}
+            value={messageText}
+            style={{ padding: 10 }}
+          />
+          <button
+            type="submit"
+            onClick={onSendLocationClick}
+          >
+            Send Location
+          </button>
+          <button
+            className="App-Button-Style"
+            disabled={messageText ? false : true}
+            type="submit"
+            onClick={onSendClick}
+          >
+            Send
+            </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default App;
